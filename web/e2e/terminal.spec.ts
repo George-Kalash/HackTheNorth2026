@@ -1,0 +1,54 @@
+import {test,expect} from '@playwright/test';
+test('search, comparison, books, simulation, watchlist, workspace and keyboard',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/search');await page.getByRole('button',{name:'Import October 2026 Fed example'}).click();
+ await expect(page).toHaveURL(/\/compare\/match_/, {timeout:60000});
+ await expect(page.locator('.desktop-comparison .quote-strip')).toBeVisible({timeout:60000});
+ await expect(page.locator('.desktop-comparison .two-books')).toBeVisible();
+ await expect(page.locator('.desktop-comparison .rule-text').first()).toContainText('Federal Reserve');
+ await page.locator('.desktop-comparison').getByRole('button',{name:'TRADE',exact:true}).click();
+ await page.locator('.desktop-comparison').getByRole('button',{name:'Run scenario'}).click();
+ await expect(page.locator('.desktop-comparison .simulation-result')).toContainText('UNVERIFIED SCENARIO');
+ await page.locator('.desktop-comparison').getByRole('button',{name:'+ Watchlist'}).click();
+ await expect(page.locator('.desktop-comparison').getByRole('button',{name:'✓ Watchlisted'})).toBeVisible();
+ await page.getByRole('button',{name:'Save workspace'}).click();await expect(page.getByRole('status')).toContainText('Workspace saved');
+ const url=page.url();await page.reload();await expect(page.locator('.desktop-comparison .quote-strip')).toBeVisible();expect(page.url()).toBe(url);
+ await page.keyboard.press('Control+k');await expect(page.getByRole('textbox',{name:'Terminal command'})).toBeFocused();await page.getByRole('textbox',{name:'Terminal command'}).fill('SCAN');await page.keyboard.press('Enter');await expect(page).toHaveURL(/\/scanner/);
+ await expect(page.getByRole('grid')).toBeVisible();await page.screenshot({path:'../data/terminal-scanner.png',fullPage:true});
+ await page.goto(url);await expect(page.locator('.desktop-comparison .quote-strip')).toBeVisible();await page.screenshot({path:'../data/terminal-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});await expect(page.locator('.mobile-comparison')).toBeVisible();await page.locator('.mobile-comparison').getByRole('button',{name:'BOOKS',exact:true}).click();await expect(page.locator('.mobile-comparison .two-books')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:'../data/terminal-mobile.png',fullPage:true});
+ expect(errors).toEqual([]);
+});
+test('offline shows frozen/disconnected state; missing credentials show polled fallback',async({page,context})=>{
+ await page.goto('/settings');await expect(page.getByText('REST fallback active',{exact:false})).toBeVisible();
+ await context.setOffline(true);await page.reload().catch(()=>{});await context.setOffline(false);
+ await page.goto('/settings');await page.route('**/api/v1/health/ready',route=>route.abort());await page.reload();await expect(page.locator('.statusbar')).toContainText('DISCONNECTED',{timeout:30000});
+});
+test('1000 fictional scanner rows are virtualized',async({page})=>{
+ const items=Array.from({length:1000},(_,i)=>({match:{id:'fixture-'+i,title:'FICTIONAL BENCHMARK '+i,market_ids:[],classification:'RELATED',review_state:'UNREVIEWED',score:.5,reasons:[],differences:[],rule_hashes:{}},event:'Fictional',quotes:[],gap_pp:null,proposed_legs:[],ages:[],expiry:null,fee_status:'UNKNOWN',verified:false,net_floor:null,capacity:null,eligibility_reasons:['FICTIONAL TEST ONLY']}));
+ await page.route('**/api/v1/opportunities?*',route=>route.fulfill({json:{items,total:1000,limit:1000,offset:0}}));
+ const start=Date.now();await page.goto('/scanner');await expect(page.getByRole('row').first()).toContainText('FICTIONAL BENCHMARK');
+ expect(await page.getByRole('row').count()).toBeLessThan(100);
+ await page.locator('.virtual-scroll').evaluate(el=>{el.scrollTop=el.scrollHeight;});await expect(page.getByRole('row').last()).toContainText('999');
+ console.log('1000-row fixture navigation/render/scroll elapsed ms:',Date.now()-start);
+});
+test('independent groups, stable crosshair canvases, and malformed workspace recovery',async({page,request})=>{
+ const errors:string[]=[];page.on('pageerror',error=>{errors.push(error.message);console.log(error.stack);});
+ const response=await request.get('/api/v1/opportunities?limit=10');
+ const {items}=await response.json();expect(items.length).toBeGreaterThan(1);
+ const a=items[0].match.id,b=items[1].match.id;
+ await page.addInitScript(({a,b})=>localStorage.setItem('parallax-workspace',JSON.stringify({version:1,state:{schema_version:1,preset:'Compare',group:'A',selected:{A:a,B:b,C:null},ranges:{A:7,B:1,C:30},tabs:[a,b],scannerFilters:null}})),{a,b});
+ await page.goto('/compare/'+a);
+ await expect(page.locator('.linked-panel')).toContainText('INDEPENDENT LINK GROUP B');
+ await expect(page.locator('.linked-panel .quote-strip')).toBeVisible({timeout:60000});
+ await expect(page.locator('.linked-panel').getByRole('button',{name:'1D',exact:true})).toHaveClass(/active/);
+ const canvas=page.locator('.desktop-comparison .chart-canvas canvas').first();
+ await expect(canvas).toBeVisible({timeout:60000});const handle=await canvas.elementHandle();
+ await page.locator('.desktop-comparison .chart-canvas').first().hover({position:{x:110,y:90}});await page.mouse.move(150,350);
+ expect(await handle!.evaluate(el=>el.isConnected)).toBeTruthy();
+ await page.locator('.workspace-tabs').getByRole('button',{name:'B',exact:true}).click();await expect(page).toHaveURL(new RegExp('/compare/'+b));
+ await page.locator('.workspace-tabs').getByRole('button',{name:'A',exact:true}).click();await expect(page).toHaveURL(new RegExp('/compare/'+a));
+ await page.getByLabel('Workspace preset').selectOption('Research');
+ const maximize=page.getByRole('button',{name:'Maximize PRICE HISTORY / UTC'}).first();await maximize.click();await expect(page.locator('.desktop-comparison .panel.maximized')).toBeVisible();await page.keyboard.press('Escape');await expect(page.locator('.panel.maximized')).toHaveCount(0);
+ expect(errors).toEqual([]);
+});

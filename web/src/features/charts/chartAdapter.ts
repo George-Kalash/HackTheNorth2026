@@ -1,0 +1,11 @@
+// Lightweight Charts is Apache-2.0; attribution is displayed in the chart panel.
+import {createChart,LineSeries,ColorType,type UTCTimestamp,type IChartApi,type ISeriesApi} from 'lightweight-charts';
+export interface SeriesInput {name:string;color:string;points:{time:string;value:number|null}[]}
+export interface MountedChart {chart:IChartApi; setCursor:(time:number|null)=>void}
+export function mountChart(element:HTMLElement,series:SeriesInput[],probability:boolean,onCursor:(t:number|null)=>void):MountedChart{
+ const chart=createChart(element,{autoSize:true,height:probability?220:115,layout:{background:{type:ColorType.Solid,color:'#10151c'},textColor:'#91a0b2',fontSize:11,fontFamily:'ui-monospace, SFMono-Regular, monospace',attributionLogo:true},grid:{vertLines:{color:'#1a222e'},horzLines:{color:'#1f2935'}},rightPriceScale:{borderColor:'#293441',scaleMargins:{top:0,bottom:0}},timeScale:{timeVisible:true,secondsVisible:false,borderColor:'#293441'},crosshair:{mode:0}});
+ let first:ISeriesApi<"Line">|null=null;const values=new Map<number,number>();
+ for(const item of series){const s=chart.addSeries(LineSeries,{color:item.color,lineWidth:2,title:item.name,priceFormat:{type:'custom',formatter:(v:number)=>v.toFixed(2)+(probability?'%':' pp')},...(probability?{autoscaleInfoProvider:()=>({priceRange:{minValue:0,maxValue:100}})}:{})});if(!first){first=s;for(const p of item.points)if(p.value!==null)values.set(Math.floor(new Date(p.time).getTime()/1000),p.value);}
+const unique=new Map(item.points.map(p=>[Math.floor(new Date(p.time).getTime()/1000),p.value]));s.setData([...unique.entries()].sort((a,b)=>a[0]-b[0]).map(([time,value])=>value===null?{time:time as UTCTimestamp}:{time:time as UTCTimestamp,value}));}
+ chart.timeScale().fitContent();chart.subscribeCrosshairMove(p=>onCursor(typeof p.time==='number'?p.time:null));return {chart,setCursor:time=>{if(!element.isConnected||element.clientWidth===0||element.clientHeight===0)return;if(time===null){chart.clearCrosshairPosition();return;}const value=values.get(time);if(first&&value!==undefined&&first.priceToCoordinate(value)!==null&&chart.timeScale().timeToCoordinate(time as UTCTimestamp)!==null)chart.setCrosshairPosition(value,time as UTCTimestamp,first);}};
+}

@@ -1,0 +1,3 @@
+import type {Group} from "../../workspace/persistence";
+import type {Comparison} from '../../services/api';import {Chart} from './ProbabilityChart';
+export function SpreadChart({data,group}:{data:Comparison;group?:Group}){return <div className="spread"><div className="chart-label">{data.markets.length>2?'SYNTHETIC SPREAD / TARGET − SUM OF COMPONENTS / PP':'SIGNED SPREAD / KALSHI − POLYMARKET / PP'}</div>{data.aligned.some(p=>p.spread_pp!==null)?<Chart group={group} probability={false} series={[{name:'Spread',color:'#e4b165',points:data.aligned.map(p=>({time:p.time,value:p.spread_pp===null?null:Number(p.spread_pp)}))}]}/>:<p className="muted">No like-for-like aligned series. Select recorded midpoints to compare observations made by this terminal.</p>}</div>}

@@ -3,7 +3,14 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 .env
 .DS_Store
 dist/
 *.egg-info/
+node_modules/
+web/test-results/
+web/playwright-report/
+*.tsbuildinfo
+data/*
+!data/.gitkeep

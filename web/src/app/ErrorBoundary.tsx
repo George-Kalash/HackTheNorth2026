@@ -1,0 +1,2 @@
+import {Component,type ReactNode} from 'react';
+export class ErrorBoundary extends Component<{children:ReactNode},{error:string|null}>{state={error:null as string|null};static getDerivedStateFromError(e:Error){return {error:e.message};}render(){return this.state.error?<div className="empty error"><h2>Workspace could not render</h2><p>{this.state.error}</p><button onClick={()=>{localStorage.removeItem('parallax-workspace');location.href='/search';}}>Reset workspace</button></div>:this.props.children;}}

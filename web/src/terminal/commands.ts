@@ -1,0 +1,2 @@
+export type Command={action:'search'|'compare'|'scanner'|'watchlists'|'rules'|'alerts'|'settings';argument:string};
+export function parseCommand(input:string):Command {const [word,...rest]=input.trim().split(/\s+/);const commands:Record<string,Command['action']>={SRCH:'search',COMP:'compare',SCAN:'scanner',WL:'watchlists',RULES:'rules',ALERTS:'alerts',SETTINGS:'settings'};return {action:commands[word.toUpperCase()]??'search',argument:commands[word.toUpperCase()]?rest.join(' '):input.trim()};}
